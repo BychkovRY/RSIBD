@@ -102,13 +102,16 @@ def get_tickers_from_wikipedia(tickers):
         tickers.update(get_securities('https://en.wikipedia.org/wiki/List_of_S%26P_400_companies', 2, universe="S&P 400"))
     if cfg("SP600"):
         tickers.update(get_securities('https://en.wikipedia.org/wiki/List_of_S%26P_600_companies', 2, universe="S&P 600"))
+    if cfg("RUS1000"):
+        tickers.update(get_securities('https://en.wikipedia.org/wiki/Russell_1000_Index', 2, universe="RUSSELL 1000"))
     return tickers
 
 def exchange_from_symbol(symbol):
     if symbol == "Q":
         return "NASDAQ"
     if symbol == "A":
-        return "NYSE MKT"
+#        return "NYSE MKT"
+        return "AMEX"
     if symbol == "N":
        return "NYSE"
     if symbol == "P":
@@ -134,17 +137,34 @@ def get_tickers_from_nasdaq(tickers):
     lines.seek(0)
     results = lines.readlines()
 
-    for entry in results:
-        sec = {}
-        values = entry.split('|')
-        ticker = values[ticker_column]
-        if re.match(r'^[A-Z]+$', ticker) and values[etf_column] == "N" and values[test_column] == "N":
-            sec["ticker"] = ticker
-            sec["sector"] = UNKNOWN
-            sec["industry"] = UNKNOWN
-            sec["universe"] = exchange_from_symbol(values[exchange_column])
-            tickers[sec["ticker"]] = sec
-
+    if cfg("ETF"):
+#        i = 0  # временно
+        for entry in results:
+#            i= i + 1
+            sec = {}
+            values = entry.split('|')
+            ticker = values[ticker_column]
+#            if i == 200:
+#                break
+            if ticker == 'SPY':
+                continue
+            if re.match(r'^[A-Z]+$', ticker) and values[etf_column] == "Y" and values[test_column] == "N":
+                sec["ticker"] = ticker
+                sec["sector"] = UNKNOWN
+                sec["industry"] = UNKNOWN
+                sec["universe"] = exchange_from_symbol(values[exchange_column])
+                tickers[sec["ticker"]] = sec
+    else:
+        for entry in results:
+            sec = {}
+            values = entry.split('|')
+            ticker = values[ticker_column]
+            if re.match(r'^[A-Z]+$', ticker) and values[etf_column] == "N" and values[test_column] == "N":
+                sec["ticker"] = ticker
+                sec["sector"] = UNKNOWN
+                sec["industry"] = UNKNOWN
+                sec["universe"] = exchange_from_symbol(values[exchange_column])
+                tickers[sec["ticker"]] = sec
     return tickers
 
 SECURITIES = get_resolved_securities().values()

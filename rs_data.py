@@ -97,9 +97,9 @@ def get_tickers_from_wikipedia(tickers):
     if cfg("NQ100"):
         tickers.update(get_securities('https://en.wikipedia.org/wiki/Nasdaq-100', 2, 3, universe="Nasdaq 100"))
     if cfg("SP500"):
-        tickers.update(get_securities('http://en.wikipedia.org/wiki/List_of_S%26P_500_companies', sector_offset=3, universe="S&P 500"))
+        tickers.update(get_securities('http://en.wikipedia.org/wiki/List_of_S%26P_500_companies', sector_offset=2, universe="S&P 500"))
     if cfg("SP400"):
-        tickers.update(get_securities('https://en.wikipedia.org/wiki/List_of_S%26P_400_companies', 2, universe="S&P 400"))
+        tickers.update(get_securities('https://en.wikipedia.org/wiki/List_of_S%26P_400_companies', sector_offset=2, universe="S&P 400"))
     if cfg("SP600"):
         tickers.update(get_securities('https://en.wikipedia.org/wiki/List_of_S%26P_600_companies', 2, universe="S&P 600"))
     if cfg("RUS1000"):
@@ -183,6 +183,7 @@ def enrich_ticker_data(ticker_response, security):
     ticker_response["sector"] = security["sector"]
     ticker_response["industry"] = security["industry"]
     ticker_response["universe"] = security["universe"]
+#    ticker_response["mcap"] = web.get_quote_yahoo(security["ticker"])['marketCap']
 
 def tda_params(apikey, period_type="year", period=2, frequency_type="daily", frequency=1):
     """Returns tuple of api get params. Uses clenow default values."""
@@ -276,6 +277,8 @@ def get_yf_data(security, start_date, end_date):
         ticker = security["ticker"]
         escaped_ticker = escape_ticker(ticker)
         df = yf.download(escaped_ticker, start=start_date, end=end_date, auto_adjust=True)
+        if isinstance(df.columns, pd.MultiIndex):
+            df = df.xs(key=ticker, axis=1, level=1)
         yahoo_response = df.to_dict()
         timestamps = list(yahoo_response["Open"].keys())
         timestamps = list(map(lambda timestamp: int(timestamp.timestamp()), timestamps))
@@ -308,6 +311,7 @@ def load_prices_from_yahoo(securities, info = {}):
     tickers_dict = {}
     load_times = []
     for idx, security in enumerate(securities):
+#        sleep(4)
         ticker = security["ticker"]
         r_start = time.time()
         ticker_data = get_yf_data(security, start_date, today)
@@ -320,6 +324,7 @@ def load_prices_from_yahoo(securities, info = {}):
         remaining_seconds = remaining_seconds = get_remaining_seconds(load_times, idx, len(securities))
         print_data_progress(ticker, security["universe"], idx, securities, "", time.time() - start, remaining_seconds)
         tickers_dict[ticker] = ticker_data
+#        time.sleep(1)
     write_price_history_file(tickers_dict)
 
 def save_data(source, securities, api_key, info = {}):

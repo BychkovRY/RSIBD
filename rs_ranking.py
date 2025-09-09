@@ -40,8 +40,11 @@ TITLE_INDUSTRY = "Industry"
 TITLE_UNIVERSE = "Universe" if not ALL_STOCKS else "Exchange"
 TITLE_PERCENTILE = "Percentile"
 TITLE_1W = "1 Week Ago" # Для динамики недели
-TITLE_1M = "1 Month Ago"
-TITLE_3M = "3 Months Ago"
+TITLE_2W = "2 Week Ago"
+TITLE_3W = "3 Week Ago"
+TITLE_4W = "4 Week Ago"
+TITLE_2M = "2 Month Ago"
+TITLE_4M = "4 Months Ago"
 TITLE_6M = "6 Months Ago"
 TITLE_RS = "Relative Strength"
 
@@ -54,6 +57,12 @@ def relative_strength(closes: pd.Series, closes_ref: pd.Series):
     rs = (1 + rs_stock) / (1 + rs_ref) * 100
     rs = int(rs*100) / 100 # round to 2 decimals
     return rs
+
+def rsd(stockClose, indexClose):
+    return (stockClose / indexClose) * 100
+
+def rsm(rsd):
+    return (rsd/sma(rsd, period) - 1) * 100
 
 def strength(closes: pd.Series):
     """Calculates the performance of the last year (most recent quarter is weighted double)"""
@@ -107,33 +116,43 @@ def rankings():
                 month = 20
                 tmp_percentile = 100
                 rs1w = relative_strength(closes_series.head(-1 * week), closes_ref_series.head(-1 * week))
-                rs1m = relative_strength(closes_series.head(-1*month), closes_ref_series.head(-1*month))
-                rs3m = relative_strength(closes_series.head(-3*month), closes_ref_series.head(-3*month))
+                rs2w = relative_strength(closes_series.head(-2 * week), closes_ref_series.head(-2 * week))
+                rs3w = relative_strength(closes_series.head(-3 * week), closes_ref_series.head(-3 * week))
+                rs4w = relative_strength(closes_series.head(-4 * week), closes_ref_series.head(-4 * week))
+
+                rs2m = relative_strength(closes_series.head(-2*month), closes_ref_series.head(-2*month))
+                rs4m = relative_strength(closes_series.head(-4*month), closes_ref_series.head(-4*month))
                 rs6m = relative_strength(closes_series.head(-6*month), closes_ref_series.head(-6*month))
 
                 # if rs is too big assume there is faulty price data
                 if rs < 600:
                     # stocks output
                     ranks.append(len(ranks)+1)
-                    relative_strengths.append((0, ticker, sector, industry, json[ticker]["universe"], rs, tmp_percentile, rs1w, rs1m, rs3m, rs6m))
+                    relative_strengths.append((0, ticker, sector, industry, json[ticker]["universe"], rs, tmp_percentile, rs1w, rs2w, rs3w, rs4w, rs2m, rs4m, rs6m))
                     stock_rs[ticker] = rs
 
                     # industries output
                     if industry not in industries:
                         industries[industry] = {
-                            "info": (0, industry, sector, 0, 99, 1, 1, 3, 6),
+                            "info": (0, industry, sector, 0, 99, 1, 2, 3, 4, 2, 4, 6),
                             TITLE_RS: [],
                             TITLE_1W: [],
-                            TITLE_1M: [],
-                            TITLE_3M: [],
+                            TITLE_2W: [],
+                            TITLE_3W: [],
+                            TITLE_4W: [],
+                            TITLE_2M: [],
+                            TITLE_4M: [],
                             TITLE_6M: [],
                             TITLE_TICKERS: []
                         }
                         ind_ranks.append(len(ind_ranks)+1)
                     industries[industry][TITLE_RS].append(rs)
                     industries[industry][TITLE_1W].append(rs1w)
-                    industries[industry][TITLE_1M].append(rs1m)
-                    industries[industry][TITLE_3M].append(rs3m)
+                    industries[industry][TITLE_2W].append(rs2w)
+                    industries[industry][TITLE_3W].append(rs3w)
+                    industries[industry][TITLE_4W].append(rs4w)
+                    industries[industry][TITLE_2M].append(rs2m)
+                    industries[industry][TITLE_4M].append(rs4m)
                     industries[industry][TITLE_6M].append(rs6m)
                     industries[industry][TITLE_TICKERS].append(ticker)
         except KeyError:
@@ -142,11 +161,14 @@ def rankings():
     suffix = ''
 
     # stocks
-    df = pd.DataFrame(relative_strengths, columns=[TITLE_RANK, TITLE_TICKER, TITLE_SECTOR, TITLE_INDUSTRY, TITLE_UNIVERSE, TITLE_RS, TITLE_PERCENTILE, TITLE_1W, TITLE_1M, TITLE_3M, TITLE_6M])
+    df = pd.DataFrame(relative_strengths, columns=[TITLE_RANK, TITLE_TICKER, TITLE_SECTOR, TITLE_INDUSTRY, TITLE_UNIVERSE, TITLE_RS, TITLE_PERCENTILE, TITLE_1W, TITLE_2W, TITLE_3W, TITLE_4W, TITLE_2M, TITLE_4M, TITLE_6M])
     df[TITLE_PERCENTILE] = pd.qcut(df[TITLE_RS], 100, labels=False, duplicates="drop")
     df[TITLE_1W] = pd.qcut(df[TITLE_1W], 100, labels=False, duplicates="drop")
-    df[TITLE_1M] = pd.qcut(df[TITLE_1M], 100, labels=False, duplicates="drop")
-    df[TITLE_3M] = pd.qcut(df[TITLE_3M], 100, labels=False, duplicates="drop")
+    df[TITLE_2W] = pd.qcut(df[TITLE_2W], 100, labels=False, duplicates="drop")
+    df[TITLE_3W] = pd.qcut(df[TITLE_3W], 100, labels=False, duplicates="drop")
+    df[TITLE_4W] = pd.qcut(df[TITLE_4W], 100, labels=False, duplicates="drop")
+    df[TITLE_2M] = pd.qcut(df[TITLE_2M], 100, labels=False, duplicates="drop")
+    df[TITLE_4M] = pd.qcut(df[TITLE_4M], 100, labels=False, duplicates="drop")
     df[TITLE_6M] = pd.qcut(df[TITLE_6M], 100, labels=False, duplicates="drop")
     df = df.sort_values(([TITLE_RS]), ascending=False)
     df[TITLE_RANK] = ranks
@@ -175,16 +197,22 @@ def rankings():
 
     # remove industries with only one stock
     filtered_industries = filter(lambda i: len(i[TITLE_TICKERS]) > 1, list(industries.values()))
-    df_industries = pd.DataFrame(map(getDfView, filtered_industries), columns=[TITLE_RANK, TITLE_INDUSTRY, TITLE_SECTOR, TITLE_RS, TITLE_PERCENTILE, TITLE_1W, TITLE_1M, TITLE_3M, TITLE_6M])
+    df_industries = pd.DataFrame(map(getDfView, filtered_industries), columns=[TITLE_RANK, TITLE_INDUSTRY, TITLE_SECTOR, TITLE_RS, TITLE_PERCENTILE, TITLE_1W, TITLE_2W, TITLE_3W, TITLE_4W, TITLE_2M, TITLE_4M, TITLE_6M])
     df_industries[TITLE_RS] = df_industries.apply(lambda row: getRsAverage(industries, row[TITLE_INDUSTRY], TITLE_RS), axis=1)
     df_industries[TITLE_1W] = df_industries.apply(lambda row: getRsAverage(industries, row[TITLE_INDUSTRY], TITLE_1W), axis=1)
-    df_industries[TITLE_1M] = df_industries.apply(lambda row: getRsAverage(industries, row[TITLE_INDUSTRY], TITLE_1M), axis=1)
-    df_industries[TITLE_3M] = df_industries.apply(lambda row: getRsAverage(industries, row[TITLE_INDUSTRY], TITLE_3M), axis=1)
+    df_industries[TITLE_2W] = df_industries.apply(lambda row: getRsAverage(industries, row[TITLE_INDUSTRY], TITLE_2W), axis=1)
+    df_industries[TITLE_3W] = df_industries.apply(lambda row: getRsAverage(industries, row[TITLE_INDUSTRY], TITLE_3W), axis=1)
+    df_industries[TITLE_4W] = df_industries.apply(lambda row: getRsAverage(industries, row[TITLE_INDUSTRY], TITLE_4W), axis=1)
+    df_industries[TITLE_2M] = df_industries.apply(lambda row: getRsAverage(industries, row[TITLE_INDUSTRY], TITLE_2M), axis=1)
+    df_industries[TITLE_4M] = df_industries.apply(lambda row: getRsAverage(industries, row[TITLE_INDUSTRY], TITLE_4M), axis=1)
     df_industries[TITLE_6M] = df_industries.apply(lambda row: getRsAverage(industries, row[TITLE_INDUSTRY], TITLE_6M), axis=1)
     df_industries[TITLE_PERCENTILE] = pd.qcut(df_industries[TITLE_RS], 100, labels=False, duplicates="drop")
     df_industries[TITLE_1W] = pd.qcut(df_industries[TITLE_1W], 100, labels=False, duplicates="drop")
-    df_industries[TITLE_1M] = pd.qcut(df_industries[TITLE_1M], 100, labels=False, duplicates="drop")
-    df_industries[TITLE_3M] = pd.qcut(df_industries[TITLE_3M], 100, labels=False, duplicates="drop")
+    df_industries[TITLE_2W] = pd.qcut(df_industries[TITLE_2W], 100, labels=False, duplicates="drop")
+    df_industries[TITLE_3W] = pd.qcut(df_industries[TITLE_3W], 100, labels=False, duplicates="drop")
+    df_industries[TITLE_4W] = pd.qcut(df_industries[TITLE_4W], 100, labels=False, duplicates="drop")
+    df_industries[TITLE_2M] = pd.qcut(df_industries[TITLE_2M], 100, labels=False, duplicates="drop")
+    df_industries[TITLE_4M] = pd.qcut(df_industries[TITLE_4M], 100, labels=False, duplicates="drop")
     df_industries[TITLE_6M] = pd.qcut(df_industries[TITLE_6M], 100, labels=False, duplicates="drop")
     df_industries[TITLE_TICKERS] = df_industries.apply(lambda row: getTickers(industries, row[TITLE_INDUSTRY]), axis=1)
     df_industries = df_industries.sort_values(([TITLE_RS]), ascending=False)
@@ -221,15 +249,18 @@ def etf_rankings():
                 month = 20
                 tmp_percentile = 100
                 rs1w = relative_strength(closes_series.head(-1 * week), closes_ref_series.head(-1 * week))
-                rs1m = relative_strength(closes_series.head(-1*month), closes_ref_series.head(-1*month))
-                rs3m = relative_strength(closes_series.head(-3*month), closes_ref_series.head(-3*month))
+                rs2w = relative_strength(closes_series.head(-2 * week), closes_ref_series.head(-2 * week))
+                rs3w = relative_strength(closes_series.head(-3 * week), closes_ref_series.head(-3 * week))
+                rs4w = relative_strength(closes_series.head(-4 * week), closes_ref_series.head(-4 * week))
+                rs2m = relative_strength(closes_series.head(-2*month), closes_ref_series.head(-2*month))
+                rs4m = relative_strength(closes_series.head(-4*month), closes_ref_series.head(-4*month))
                 rs6m = relative_strength(closes_series.head(-6*month), closes_ref_series.head(-6*month))
 
                 # if rs is too big assume there is faulty price data
                 if rs < 600:
                     # stocks output
                     ranks.append(len(ranks)+1)
-                    relative_strengths.append((0, ticker, sector, industry, json[ticker]["universe"], rs, tmp_percentile, rs1w, rs1m, rs3m, rs6m))
+                    relative_strengths.append((0, ticker, sector, industry, json[ticker]["universe"], rs, tmp_percentile, rs1w, rs2w, rs3w, rs4w, rs2m, rs4m, rs6m))
                     stock_rs[ticker] = rs
 
         except KeyError:
@@ -238,11 +269,14 @@ def etf_rankings():
     suffix = ''
 
     # stocks
-    df = pd.DataFrame(relative_strengths, columns=[TITLE_RANK, TITLE_TICKER, TITLE_SECTOR, TITLE_INDUSTRY, TITLE_UNIVERSE, TITLE_RS, TITLE_PERCENTILE, TITLE_1W, TITLE_1M, TITLE_3M, TITLE_6M])
+    df = pd.DataFrame(relative_strengths, columns=[TITLE_RANK, TITLE_TICKER, TITLE_SECTOR, TITLE_INDUSTRY, TITLE_UNIVERSE, TITLE_RS, TITLE_PERCENTILE, TITLE_1W, TITLE_2W, TITLE_3W, TITLE_4W, TITLE_2M, TITLE_4M, TITLE_6M])
     df[TITLE_PERCENTILE] = pd.qcut(df[TITLE_RS], 100, labels=False, duplicates="drop")
     df[TITLE_1W] = pd.qcut(df[TITLE_1W], 100, labels=False, duplicates="drop")
-    df[TITLE_1M] = pd.qcut(df[TITLE_1M], 100, labels=False, duplicates="drop")
-    df[TITLE_3M] = pd.qcut(df[TITLE_3M], 100, labels=False, duplicates="drop")
+    df[TITLE_2W] = pd.qcut(df[TITLE_2W], 100, labels=False, duplicates="drop")
+    df[TITLE_3W] = pd.qcut(df[TITLE_3W], 100, labels=False, duplicates="drop")
+    df[TITLE_4W] = pd.qcut(df[TITLE_4W], 100, labels=False, duplicates="drop")
+    df[TITLE_2M] = pd.qcut(df[TITLE_2M], 100, labels=False, duplicates="drop")
+    df[TITLE_4M] = pd.qcut(df[TITLE_4M], 100, labels=False, duplicates="drop")
     df[TITLE_6M] = pd.qcut(df[TITLE_6M], 100, labels=False, duplicates="drop")
     df = df.sort_values(([TITLE_RS]), ascending=False)
     df[TITLE_RANK] = ranks

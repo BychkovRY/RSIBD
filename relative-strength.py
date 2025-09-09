@@ -1,5 +1,6 @@
 import rs_data
 import rs_ranking
+#import rs_mrs
 import sys
 
 def main():
@@ -11,6 +12,7 @@ def main():
    else:
       rs_data.main(forceTDA=="true")
    rs_ranking.main(skipEnter=="true")
+#   rs_MRS.main
 
 if __name__ == "__main__":
    main()
